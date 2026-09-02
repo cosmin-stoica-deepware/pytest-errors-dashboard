@@ -1,0 +1,7 @@
+{
+  "name": "test-health-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dashboard pubblica per tracciare lo storico dei fallimenti pytest da Jenkins",
+  "scripts": {}
+}
