@@ -5,23 +5,7 @@ import json
 import urllib.request
 import xml.etree.ElementTree as ET
 
-CATEGORY_RULES = [
-    ("can_timeout", ["can bus", "vcan", "can0", "canopen", "timeout can"]),
-    ("ramp_timeout", ["ramp", "rampa"]),
-    ("timeout_generic", ["timeout", "timed out"]),
-]
-
 FAILURE_OUTCOMES = ("failed", "error")
-
-
-def categorize(message: str):
-    if not message:
-        return None
-    lowered = message.lower()
-    for category, keywords in CATEGORY_RULES:
-        if any(kw in lowered for kw in keywords):
-            return category
-    return None
 
 
 def outcome_of(testcase: ET.Element) -> str:
@@ -47,10 +31,7 @@ def parse_junit(path: str):
     root = tree.getroot()
     testcases = root.iter("testcase")
 
-    build_number = os.environ.get("BUILD_NUMBER")
     build_url = os.environ.get("BUILD_URL")
-    node_name = os.environ.get("NODE_NAME")
-    job_name = os.environ.get("JOB_NAME")
 
     results = []
     for tc in testcases:
@@ -61,17 +42,12 @@ def parse_junit(path: str):
         classname = tc.get("classname", "")
         name = tc.get("name", "")
         test_name = f"{classname}::{name}" if classname else name
-        message = message_of(tc)
         results.append({
             "test_name": test_name,
             "outcome": outcome,
             "duration": float(tc.get("time", 0) or 0),
-            "build_number": build_number,
             "build_url": build_url,
-            "node_name": node_name,
-            "job_name": job_name,
-            "category": categorize(message),
-            "message": message,
+            "message": message_of(tc),
         })
     return results
 

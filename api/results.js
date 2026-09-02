@@ -3,6 +3,7 @@ const { randomUUID } = require('crypto');
 const REDIS_KEY = 'test_results';
 const MAX_ENTRIES = 5000;
 const MESSAGE_MAX_LEN = 20000;
+const OUTCOMES = ['passed', 'failed', 'error', 'skipped'];
 
 async function upstashCommand(cmd) {
   const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -44,13 +45,9 @@ function normalizeEntry(raw, fallbackTimestamp) {
   return {
     id: raw.id || randomUUID(),
     test_name: String(raw.test_name || 'unknown'),
-    outcome: ['passed', 'failed', 'error', 'skipped'].includes(raw.outcome) ? raw.outcome : 'unknown',
+    outcome: OUTCOMES.includes(raw.outcome) ? raw.outcome : 'unknown',
     duration: typeof raw.duration === 'number' ? raw.duration : null,
-    build_number: raw.build_number != null ? String(raw.build_number) : null,
     build_url: raw.build_url || null,
-    node_name: raw.node_name || null,
-    job_name: raw.job_name || null,
-    category: raw.category || null,
     message: raw.message ? String(raw.message).slice(0, MESSAGE_MAX_LEN) : null,
     timestamp: raw.timestamp || fallbackTimestamp,
   };
@@ -82,9 +79,7 @@ function computeAggregates(entries) {
       byTest.set(e.test_name, {
         test_name: e.test_name,
         total: 0,
-        categories: {},
         last_outcome: null,
-        last_build: null,
         last_build_url: null,
         last_timestamp: null,
         runs: [],
@@ -92,21 +87,17 @@ function computeAggregates(entries) {
     }
     const agg = byTest.get(e.test_name);
     agg.total += 1;
-    if (e.category) agg.categories[e.category] = (agg.categories[e.category] || 0) + 1;
     if (agg.runs.length < 200) {
       agg.runs.push({
         id: e.id,
         outcome: e.outcome,
-        build_number: e.build_number,
         build_url: e.build_url,
         timestamp: e.timestamp,
-        category: e.category,
         message: e.message,
       });
     }
     if (agg.last_timestamp === null) {
       agg.last_outcome = e.outcome;
-      agg.last_build = e.build_number;
       agg.last_build_url = e.build_url;
       agg.last_timestamp = e.timestamp;
     }
@@ -124,9 +115,22 @@ function checkAuth(req) {
   return Boolean(process.env.INGEST_TOKEN) && apiKey === process.env.INGEST_TOKEN;
 }
 
+async function readAllRaw() {
+  const raw = await upstashCommand(['LRANGE', REDIS_KEY, '0', '-1']);
+  return raw || [];
+}
+
+async function rewriteAll(rawList) {
+  const commands = [['DEL', REDIS_KEY]];
+  for (const rawString of rawList) {
+    commands.push(['RPUSH', REDIS_KEY, rawString]);
+  }
+  await upstashPipeline(commands);
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key');
 
   if (req.method === 'OPTIONS') {
@@ -159,6 +163,47 @@ module.exports = async (req, res) => {
       return;
     }
 
+    if (req.method === 'PUT') {
+      if (!checkAuth(req)) {
+        res.status(401).json({ error: 'invalid or missing x-api-key' });
+        return;
+      }
+
+      const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+      const targetId = body.id || null;
+      if (!targetId) {
+        res.status(400).json({ error: 'expected { "id": "...", ... fields to update }' });
+        return;
+      }
+
+      const rawList = await readAllRaw();
+      let updated = false;
+      const newList = rawList.map((rawString) => {
+        const data = parseStoredEntry(rawString);
+        if (!data || data.id !== targetId) return rawString;
+        updated = true;
+        const merged = {
+          ...data,
+          test_name: body.test_name != null && String(body.test_name).trim() ? String(body.test_name) : data.test_name,
+          outcome: OUTCOMES.includes(body.outcome) ? body.outcome : data.outcome,
+          build_url: body.build_url !== undefined ? (body.build_url || null) : data.build_url,
+          message: body.message !== undefined
+            ? (body.message ? String(body.message).slice(0, MESSAGE_MAX_LEN) : null)
+            : data.message,
+        };
+        return JSON.stringify(merged);
+      });
+
+      if (!updated) {
+        res.status(404).json({ error: 'no entry found with that id' });
+        return;
+      }
+
+      await rewriteAll(newList);
+      res.status(200).json({ ok: true, updated: true });
+      return;
+    }
+
     if (req.method === 'DELETE') {
       if (!checkAuth(req)) {
         res.status(401).json({ error: 'invalid or missing x-api-key' });
@@ -175,8 +220,7 @@ module.exports = async (req, res) => {
         return;
       }
 
-      const raw = await upstashCommand(['LRANGE', REDIS_KEY, '0', '-1']);
-      const rawList = raw || [];
+      const rawList = await readAllRaw();
 
       let deleted = 0;
       const kept = [];
@@ -191,11 +235,7 @@ module.exports = async (req, res) => {
         }
       }
 
-      const commands = [['DEL', REDIS_KEY]];
-      for (const rawString of kept) {
-        commands.push(['RPUSH', REDIS_KEY, rawString]);
-      }
-      await upstashPipeline(commands);
+      await rewriteAll(kept);
 
       res.status(200).json({ ok: true, deleted, remaining: kept.length });
       return;

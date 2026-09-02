@@ -11,7 +11,6 @@ from datetime import datetime
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".gui_config.json")
 
 OUTCOMES = ["failed", "error", "passed", "skipped"]
-CATEGORIES = ["", "can_timeout", "ramp_timeout", "timeout_generic"]
 
 
 def load_config():
@@ -36,7 +35,7 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Send test result to dashboard")
-        self.geometry("580x700")
+        self.geometry("580x560")
         self.resizable(False, False)
 
         cfg = load_config()
@@ -86,39 +85,15 @@ class App(tk.Tk):
         )
         row += 1
 
-        ttk.Label(frame, text="Build number (build_number)").grid(row=row, column=0, sticky="w", **pad)
-        row += 1
-        self.build_var = tk.StringVar(value="1")
-        ttk.Entry(frame, textvariable=self.build_var, width=20).grid(row=row, column=0, sticky="w", **pad)
-        row += 1
-
         ttk.Label(frame, text="Build URL (build_url, optional)").grid(row=row, column=0, sticky="w", **pad)
         row += 1
         self.build_url_var = tk.StringVar(value="")
         ttk.Entry(frame, textvariable=self.build_url_var, width=64).grid(row=row, column=0, columnspan=2, sticky="we", **pad)
         row += 1
 
-        ttk.Label(frame, text="Jenkins node (node_name, optional)").grid(row=row, column=0, sticky="w", **pad)
-        row += 1
-        self.node_var = tk.StringVar(value="")
-        ttk.Entry(frame, textvariable=self.node_var, width=30).grid(row=row, column=0, sticky="w", **pad)
-        row += 1
-
-        ttk.Label(frame, text="Job (job_name, optional)").grid(row=row, column=0, sticky="w", **pad)
-        row += 1
-        self.job_var = tk.StringVar(value="")
-        ttk.Entry(frame, textvariable=self.job_var, width=30).grid(row=row, column=0, sticky="w", **pad)
-        row += 1
-
-        ttk.Label(frame, text="Category (category, optional)").grid(row=row, column=0, sticky="w", **pad)
-        row += 1
-        self.category_var = tk.StringVar(value="")
-        ttk.Combobox(frame, textvariable=self.category_var, values=CATEGORIES, width=20).grid(row=row, column=0, sticky="w", **pad)
-        row += 1
-
         ttk.Label(frame, text="Message / log (message, optional)").grid(row=row, column=0, sticky="w", **pad)
         row += 1
-        self.message_text = tk.Text(frame, height=4, width=64)
+        self.message_text = tk.Text(frame, height=5, width=64)
         self.message_text.grid(row=row, column=0, columnspan=2, sticky="we", **pad)
         row += 1
 
@@ -168,11 +143,7 @@ class App(tk.Tk):
             "results": [{
                 "test_name": test_name,
                 "outcome": self.outcome_var.get(),
-                "build_number": self.build_var.get().strip() or None,
                 "build_url": self.build_url_var.get().strip() or None,
-                "node_name": self.node_var.get().strip() or None,
-                "job_name": self.job_var.get().strip() or None,
-                "category": self.category_var.get().strip() or None,
                 "message": self.message_text.get("1.0", "end").strip() or None,
             }]
         }

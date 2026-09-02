@@ -74,7 +74,8 @@
   th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; }
   th { color: var(--muted); font-weight: 500; cursor: pointer; user-select: none; position: sticky; top: 0; background: var(--panel); }
   th:hover { color: var(--text); }
-  td.test-name { white-space: normal; max-width: 380px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; }
+  th.no-sort { cursor: default; }
+  td.test-name { white-space: normal; max-width: 360px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; }
   tr:last-child td { border-bottom: none; }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
   .badge.passed { background: rgba(79,209,139,0.15); color: var(--green); }
@@ -84,7 +85,7 @@
   a { color: var(--accent); text-decoration: none; }
   a:hover { text-decoration: underline; }
   .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 12px; flex-wrap: wrap; }
-  .toolbar input, .toolbar select {
+  .toolbar input {
     background: var(--panel); border: 1px solid var(--border); color: var(--text);
     padding: 6px 10px; border-radius: 6px; font-size: 13px;
   }
@@ -97,6 +98,7 @@
   }
   .btn:hover { border-color: var(--accent); }
   .btn.danger:hover { border-color: var(--red); color: var(--red); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #06101f; font-weight: 600; }
 
   .overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.55);
@@ -120,15 +122,17 @@
     max-height: 260px; overflow-y: auto; font-family: ui-monospace, SFMono-Regular, monospace;
   }
   .no-log { color: var(--muted); font-size: 12px; }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: #06101f; font-weight: 600; }
-  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-  .form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  .form-grid, .form-stack { margin-bottom: 16px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-stack { display: flex; flex-direction: column; gap: 12px; }
+  .form-grid label, .form-stack label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
   .form-grid label.full { grid-column: 1 / -1; }
-  .form-grid input, .form-grid select, .form-grid textarea {
+  .form-grid input, .form-grid select, .form-grid textarea,
+  .form-stack input, .form-stack select, .form-stack textarea {
     background: var(--bg); border: 1px solid var(--border); color: var(--text);
     padding: 7px 9px; border-radius: 6px; font-size: 13px; font-family: inherit;
   }
-  .form-grid textarea { font-family: ui-monospace, SFMono-Regular, monospace; resize: vertical; }
+  .form-grid textarea, .form-stack textarea { font-family: ui-monospace, SFMono-Regular, monospace; resize: vertical; }
   .form-actions { display: flex; justify-content: flex-end; }
 </style>
 </head>
@@ -137,7 +141,7 @@
   <div class="sub">Failure log for pytest, reported by the Jenkins pipeline &middot; <span id="lastUpdated" class="refresh"></span></div>
 
   <div class="admin-bar">
-    <span>Admin token (required to delete entries):</span>
+    <span>Admin token (required to add, modify or delete entries):</span>
     <input id="adminToken" type="password" placeholder="paste your INGEST_TOKEN" />
     <button id="saveTokenBtn">Save</button>
     <span class="status" id="tokenStatus"></span>
@@ -146,12 +150,7 @@
   <div class="cards" id="cards"></div>
 
   <div class="toolbar">
-    <div class="toolbar-left" style="display:flex; gap:12px; flex-wrap:wrap;">
-      <input id="search" type="text" placeholder="Filter by test name..." />
-      <select id="categoryFilter">
-        <option value="">All categories</option>
-      </select>
-    </div>
+    <input id="search" type="text" placeholder="Filter by test name..." />
     <button class="btn primary" id="addEntryBtn">+ Add entry</button>
   </div>
 
@@ -161,10 +160,9 @@
         <tr>
           <th data-key="test_name">Test</th>
           <th data-key="total">Occurrences</th>
-          <th data-key="category">Category</th>
-          <th data-key="last_build">Last build</th>
+          <th class="no-sort">Last build</th>
           <th data-key="last_timestamp">Last seen</th>
-          <th>Actions</th>
+          <th class="no-sort">Actions</th>
         </tr>
       </thead>
       <tbody id="rows"></tbody>
@@ -185,6 +183,51 @@
     </div>
   </div>
 
+  <div class="overlay" id="chooserOverlay" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="chooserTitle"></h2>
+        <div class="modal-header-actions">
+          <button class="btn" id="closeChooserBtn">Close</button>
+        </div>
+      </div>
+      <div id="chooserRuns"></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="editOverlay" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Modify entry</h2>
+        <div class="modal-header-actions">
+          <button class="btn" id="closeEditBtn">Close</button>
+        </div>
+      </div>
+      <div class="form-stack">
+        <label>Test name
+          <input id="editTestName" type="text" />
+        </label>
+        <label>Outcome
+          <select id="editOutcome">
+            <option value="failed">failed</option>
+            <option value="error">error</option>
+            <option value="passed">passed</option>
+            <option value="skipped">skipped</option>
+          </select>
+        </label>
+        <label>Build URL (optional)
+          <input id="editBuildUrl" type="text" placeholder="https://jenkins.../job/.../123/" />
+        </label>
+        <label>Message / log (optional)
+          <textarea id="editMessage" rows="6"></textarea>
+        </label>
+      </div>
+      <div class="form-actions">
+        <button class="btn primary" id="submitEditBtn">Save changes</button>
+      </div>
+    </div>
+  </div>
+
   <div class="overlay" id="addOverlay" hidden>
     <div class="modal">
       <div class="modal-header">
@@ -193,7 +236,7 @@
           <button class="btn" id="closeAddModalBtn">Close</button>
         </div>
       </div>
-      <div class="form-grid">
+      <div class="form-stack">
         <label>Test name
           <input id="addTestName" type="text" placeholder="test_module.py::test_function" />
         </label>
@@ -205,27 +248,10 @@
             <option value="skipped">skipped</option>
           </select>
         </label>
-        <label>Build number
-          <input id="addBuildNumber" type="text" placeholder="e.g. 123" />
-        </label>
         <label>Build URL (optional)
           <input id="addBuildUrl" type="text" placeholder="https://jenkins.../job/.../123/" />
         </label>
-        <label>Jenkins node (optional)
-          <input id="addNodeName" type="text" />
-        </label>
-        <label>Job (optional)
-          <input id="addJobName" type="text" />
-        </label>
-        <label>Category (optional)
-          <select id="addCategory">
-            <option value="">-</option>
-            <option value="can_timeout">can_timeout</option>
-            <option value="ramp_timeout">ramp_timeout</option>
-            <option value="timeout_generic">timeout_generic</option>
-          </select>
-        </label>
-        <label class="full">Message / log (optional)
+        <label>Message / log (optional)
           <textarea id="addMessage" rows="6" placeholder="Paste the failure message or log here"></textarea>
         </label>
       </div>
@@ -240,16 +266,10 @@
   let sortKey = 'total';
   let sortDir = -1;
   let currentModalTest = null;
+  let editingRunId = null;
 
   function getAdminToken() {
     try { return localStorage.getItem('dashboardAdminToken') || ''; } catch { return ''; }
-  }
-
-  function topCategory(cats) {
-    const entries = Object.entries(cats || {});
-    if (entries.length === 0) return null;
-    entries.sort((a, b) => b[1] - a[1]);
-    return entries[0][0];
   }
 
   function formatTime(ts) {
@@ -257,20 +277,36 @@
     try { return new Date(ts).toLocaleString('en-GB'); } catch { return ts; }
   }
 
+  function parseJenkinsBuildUrl(url) {
+    if (!url) return null;
+    try {
+      const path = new URL(url).pathname;
+      let m = path.match(/\/detail\/([^/]+)\/(\d+)(?:\/|$)/);
+      if (m) return `${m[1]} (${m[2]})`;
+      const jobMatches = [...path.matchAll(/\/job\/([^/]+)\/(\d+)(?:\/|$)/g)];
+      if (jobMatches.length) {
+        const last = jobMatches[jobMatches.length - 1];
+        return `${last[1]} (${last[2]})`;
+      }
+      m = path.match(/\/([^/]+)\/(\d+)\/?$/);
+      if (m) return `${m[1]} (${m[2]})`;
+    } catch {}
+    return null;
+  }
+
+  function buildLinkHtml(url) {
+    if (!url) return '-';
+    const label = parseJenkinsBuildUrl(url) || 'View build';
+    return `<a href="${url}" target="_blank" rel="noopener">${label}</a>`;
+  }
+
   function render() {
     const search = document.getElementById('search').value.toLowerCase();
-    const cat = document.getElementById('categoryFilter').value;
 
-    let filtered = allTests.filter((t) => {
-      if (search && !t.test_name.toLowerCase().includes(search)) return false;
-      if (cat && topCategory(t.categories) !== cat) return false;
-      return true;
-    });
+    let filtered = allTests.filter((t) => !search || t.test_name.toLowerCase().includes(search));
 
     filtered.sort((a, b) => {
       if (sortKey === 'test_name') return sortDir * a.test_name.localeCompare(b.test_name);
-      if (sortKey === 'category') return sortDir * (topCategory(a.categories) || '').localeCompare(topCategory(b.categories) || '');
-      if (sortKey === 'last_build') return sortDir * ((a.last_build || '') - (b.last_build || '') || (a.last_build || '').localeCompare(b.last_build || ''));
       if (sortKey === 'last_timestamp') return sortDir * (new Date(a.last_timestamp || 0) - new Date(b.last_timestamp || 0));
       return sortDir * ((a[sortKey] || 0) - (b[sortKey] || 0));
     });
@@ -281,25 +317,25 @@
 
     for (const t of filtered) {
       const tr = document.createElement('tr');
-      const buildLink = t.last_build_url
-        ? `<a href="${t.last_build_url}" target="_blank" rel="noopener">#${t.last_build || '?'}</a>`
-        : (t.last_build ? `#${t.last_build}` : '-');
       tr.innerHTML = `
         <td class="test-name">${t.test_name}</td>
         <td>${t.total}</td>
-        <td>${topCategory(t.categories) || '-'}</td>
-        <td>${buildLink}</td>
+        <td>${buildLinkHtml(t.last_build_url)}</td>
         <td>${formatTime(t.last_timestamp)}</td>
         <td class="actions-cell">
-          <button class="btn" data-action="logs" data-test="${encodeURIComponent(t.test_name)}">Logs</button>
+          <button class="btn" data-action="info" data-test="${encodeURIComponent(t.test_name)}">Info</button>
+          <button class="btn" data-action="modify" data-test="${encodeURIComponent(t.test_name)}">Modify</button>
           <button class="btn danger" data-action="delete-all" data-test="${encodeURIComponent(t.test_name)}">Delete all</button>
         </td>
       `;
       rows.appendChild(tr);
     }
 
-    rows.querySelectorAll('button[data-action="logs"]').forEach((btn) => {
-      btn.addEventListener('click', () => openModal(decodeURIComponent(btn.dataset.test)));
+    rows.querySelectorAll('button[data-action="info"]').forEach((btn) => {
+      btn.addEventListener('click', () => openInfoModal(decodeURIComponent(btn.dataset.test)));
+    });
+    rows.querySelectorAll('button[data-action="modify"]').forEach((btn) => {
+      btn.addEventListener('click', () => openModifyFlow(decodeURIComponent(btn.dataset.test)));
     });
     rows.querySelectorAll('button[data-action="delete-all"]').forEach((btn) => {
       btn.addEventListener('click', () => deleteAllRuns(decodeURIComponent(btn.dataset.test)));
@@ -320,33 +356,19 @@
       .join('');
   }
 
-  function populateCategories(tests) {
-    const set = new Set();
-    tests.forEach((t) => {
-      const c = topCategory(t.categories);
-      if (c) set.add(c);
-    });
-    const sel = document.getElementById('categoryFilter');
-    const current = sel.value;
-    sel.innerHTML = '<option value="">All categories</option>' +
-      Array.from(set).sort().map((c) => `<option value="${c}">${c}</option>`).join('');
-    sel.value = current;
-  }
-
   async function load() {
     try {
       const res = await fetch('/api/results?limit=3000');
       const data = await res.json();
       allTests = data.tests || [];
       renderCards(data);
-      populateCategories(allTests);
       render();
       document.getElementById('lastUpdated').textContent =
         'updated at ' + new Date(data.generated_at).toLocaleTimeString('en-GB');
 
       if (currentModalTest) {
         const fresh = allTests.find((t) => t.test_name === currentModalTest);
-        if (fresh) renderModal(fresh); else closeModal();
+        if (fresh) renderInfoModal(fresh); else closeInfoModal();
       }
     } catch (e) {
       document.getElementById('emptyState').style.display = 'block';
@@ -354,20 +376,20 @@
     }
   }
 
-  function openModal(testName) {
+  function openInfoModal(testName) {
     const t = allTests.find((x) => x.test_name === testName);
     if (!t) return;
     currentModalTest = testName;
-    renderModal(t);
+    renderInfoModal(t);
     document.getElementById('overlay').hidden = false;
   }
 
-  function closeModal() {
+  function closeInfoModal() {
     currentModalTest = null;
     document.getElementById('overlay').hidden = true;
   }
 
-  function renderModal(t) {
+  function renderInfoModal(t) {
     document.getElementById('modalTitle').textContent = t.test_name;
     document.getElementById('deleteAllBtn').onclick = () => deleteAllRuns(t.test_name);
 
@@ -378,17 +400,14 @@
     for (const run of runs) {
       const item = document.createElement('div');
       item.className = 'run-item';
-      const buildLink = run.build_url
-        ? `<a href="${run.build_url}" target="_blank" rel="noopener">#${run.build_number || '?'}</a>`
-        : (run.build_number ? `#${run.build_number}` : '-');
       item.innerHTML = `
         <div class="run-header">
           <span class="badge ${run.outcome}">${run.outcome || '-'}</span>
-          <span>${buildLink}</span>
+          <span>${buildLinkHtml(run.build_url)}</span>
           <span>${formatTime(run.timestamp)}</span>
-          <span>${run.category || ''}</span>
           <span class="spacer"></span>
           ${run.message ? '<button class="btn toggle-log">View log</button>' : '<span class="no-log">No log</span>'}
+          <button class="btn edit-run">Edit</button>
           <button class="btn danger delete-run">Delete</button>
         </div>
         ${run.message ? `<pre class="run-log" hidden></pre>` : ''}
@@ -401,12 +420,116 @@
           ev.target.textContent = pre.hidden ? 'View log' : 'Hide log';
         });
       }
+      item.querySelector('.edit-run').addEventListener('click', () => {
+        closeInfoModal();
+        openEditModal(run, t.test_name);
+      });
       item.querySelector('.delete-run').addEventListener('click', () => deleteRun(run.id));
       container.appendChild(item);
     }
 
     if (runs.length === 0) {
       container.innerHTML = '<div class="no-log">No occurrences left.</div>';
+    }
+  }
+
+  function openModifyFlow(testName) {
+    const t = allTests.find((x) => x.test_name === testName);
+    if (!t || !t.runs || t.runs.length === 0) return;
+    if (t.runs.length === 1) {
+      openEditModal(t.runs[0], testName);
+    } else {
+      openChooserModal(t);
+    }
+  }
+
+  function openChooserModal(t) {
+    document.getElementById('chooserTitle').textContent = 'Choose an occurrence to modify';
+    const container = document.getElementById('chooserRuns');
+    container.innerHTML = '';
+    const runs = (t.runs || []).slice().sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+    for (const run of runs) {
+      const item = document.createElement('div');
+      item.className = 'run-item';
+      const preview = run.message
+        ? run.message.slice(0, 90).replace(/\s+/g, ' ') + (run.message.length > 90 ? '…' : '')
+        : 'No log';
+      item.innerHTML = `
+        <div class="run-header">
+          <span class="badge ${run.outcome}">${run.outcome || '-'}</span>
+          <span>${formatTime(run.timestamp)}</span>
+          <span class="spacer"></span>
+          <button class="btn primary">Edit</button>
+        </div>
+        <div class="no-log" style="margin-top:6px;">${preview}</div>
+      `;
+      item.querySelector('button').addEventListener('click', () => {
+        closeChooserModal();
+        openEditModal(run, t.test_name);
+      });
+      container.appendChild(item);
+    }
+    document.getElementById('chooserOverlay').hidden = false;
+  }
+
+  function closeChooserModal() {
+    document.getElementById('chooserOverlay').hidden = true;
+  }
+
+  function openEditModal(run, testName) {
+    editingRunId = run.id;
+    document.getElementById('editTestName').value = testName;
+    document.getElementById('editOutcome').value = run.outcome || 'failed';
+    document.getElementById('editBuildUrl').value = run.build_url || '';
+    document.getElementById('editMessage').value = run.message || '';
+    document.getElementById('editOverlay').hidden = false;
+  }
+
+  function closeEditModal() {
+    editingRunId = null;
+    document.getElementById('editOverlay').hidden = true;
+  }
+
+  async function submitEdit() {
+    const token = getAdminToken();
+    if (!token) {
+      alert('Set the admin token first (top of the page) to modify entries.');
+      return;
+    }
+    if (!editingRunId) return;
+    const testName = document.getElementById('editTestName').value.trim();
+    if (!testName) {
+      alert('Test name is required.');
+      return;
+    }
+
+    const payload = {
+      id: editingRunId,
+      test_name: testName,
+      outcome: document.getElementById('editOutcome').value,
+      build_url: document.getElementById('editBuildUrl').value.trim() || null,
+      message: document.getElementById('editMessage').value.trim() || null,
+    };
+
+    const btn = document.getElementById('submitEditBtn');
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/results', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': token },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert('Update failed: ' + (data.error || res.status));
+        return;
+      }
+      closeEditModal();
+      await load();
+    } catch (e) {
+      alert('Network error: ' + e.message);
+    } finally {
+      btn.disabled = false;
     }
   }
 
@@ -439,7 +562,7 @@
     if (!confirm(`Delete ALL occurrences of "${testName}"?`)) return;
     const result = await apiDelete({ test_name: testName, all: true });
     if (result) {
-      if (currentModalTest === testName) closeModal();
+      if (currentModalTest === testName) closeInfoModal();
       await load();
     }
   }
@@ -452,11 +575,19 @@
     });
   });
   document.getElementById('search').addEventListener('input', render);
-  document.getElementById('categoryFilter').addEventListener('change', render);
-  document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+  document.getElementById('closeModalBtn').addEventListener('click', closeInfoModal);
   document.getElementById('overlay').addEventListener('click', (e) => {
-    if (e.target.id === 'overlay') closeModal();
+    if (e.target.id === 'overlay') closeInfoModal();
   });
+  document.getElementById('closeChooserBtn').addEventListener('click', closeChooserModal);
+  document.getElementById('chooserOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'chooserOverlay') closeChooserModal();
+  });
+  document.getElementById('closeEditBtn').addEventListener('click', closeEditModal);
+  document.getElementById('editOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'editOverlay') closeEditModal();
+  });
+  document.getElementById('submitEditBtn').addEventListener('click', submitEdit);
 
   const tokenInput = document.getElementById('adminToken');
   const tokenStatus = document.getElementById('tokenStatus');
@@ -483,11 +614,7 @@
   function clearAddForm() {
     document.getElementById('addTestName').value = '';
     document.getElementById('addOutcome').value = 'failed';
-    document.getElementById('addBuildNumber').value = '';
     document.getElementById('addBuildUrl').value = '';
-    document.getElementById('addNodeName').value = '';
-    document.getElementById('addJobName').value = '';
-    document.getElementById('addCategory').value = '';
     document.getElementById('addMessage').value = '';
   }
 
@@ -507,11 +634,7 @@
       results: [{
         test_name: testName,
         outcome: document.getElementById('addOutcome').value,
-        build_number: document.getElementById('addBuildNumber').value.trim() || null,
         build_url: document.getElementById('addBuildUrl').value.trim() || null,
-        node_name: document.getElementById('addNodeName').value.trim() || null,
-        job_name: document.getElementById('addJobName').value.trim() || null,
-        category: document.getElementById('addCategory').value || null,
         message: document.getElementById('addMessage').value.trim() || null,
       }],
     };
