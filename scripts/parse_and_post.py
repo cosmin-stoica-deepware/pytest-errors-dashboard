@@ -11,6 +11,8 @@ CATEGORY_RULES = [
     ("timeout_generic", ["timeout", "timed out"]),
 ]
 
+FAILURE_OUTCOMES = ("failed", "error")
+
 
 def categorize(message: str):
     if not message:
@@ -52,13 +54,17 @@ def parse_junit(path: str):
 
     results = []
     for tc in testcases:
+        outcome = outcome_of(tc)
+        if outcome not in FAILURE_OUTCOMES:
+            continue
+
         classname = tc.get("classname", "")
         name = tc.get("name", "")
         test_name = f"{classname}::{name}" if classname else name
         message = message_of(tc)
         results.append({
             "test_name": test_name,
-            "outcome": outcome_of(tc),
+            "outcome": outcome,
             "duration": float(tc.get("time", 0) or 0),
             "build_number": build_number,
             "build_url": build_url,
@@ -87,7 +93,7 @@ def post_results(results, dashboard_url: str, token: str):
 
 def main():
     if len(sys.argv) < 2:
-        print("Uso: parse_and_post.py <path-al-report-junit.xml>", file=sys.stderr)
+        print("Usage: parse_and_post.py <path-to-junit-report.xml>", file=sys.stderr)
         sys.exit(1)
 
     xml_path = sys.argv[1]
@@ -95,16 +101,16 @@ def main():
     token = os.environ.get("INGEST_TOKEN")
 
     if not dashboard_url or not token:
-        print("Errore: imposta DASHBOARD_URL e INGEST_TOKEN come variabili d'ambiente.", file=sys.stderr)
+        print("Error: set DASHBOARD_URL and INGEST_TOKEN as environment variables.", file=sys.stderr)
         sys.exit(1)
 
     results = parse_junit(xml_path)
     if not results:
-        print("Nessun <testcase> trovato nel report, niente da inviare.")
+        print("No failed or errored tests in this report, nothing to send.")
         return
 
     response = post_results(results, dashboard_url, token)
-    print(f"Inviati {len(results)} risultati -> {response}")
+    print(f"Sent {len(results)} failures -> {response}")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -35,7 +35,21 @@
     padding: 24px;
   }
   h1 { font-size: 20px; margin: 0 0 2px; }
-  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+  .admin-bar {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 12px; margin-bottom: 20px; font-size: 12px; color: var(--muted);
+  }
+  .admin-bar input {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 5px 8px; border-radius: 6px; font-size: 12px; width: 220px;
+  }
+  .admin-bar button {
+    background: var(--accent); border: none; color: #06101f; font-weight: 600;
+    padding: 5px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;
+  }
+  .admin-bar .status { font-size: 11px; }
   .cards {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -60,15 +74,13 @@
   th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; }
   th { color: var(--muted); font-weight: 500; cursor: pointer; user-select: none; position: sticky; top: 0; background: var(--panel); }
   th:hover { color: var(--text); }
-  td.test-name { white-space: normal; max-width: 420px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; }
+  td.test-name { white-space: normal; max-width: 380px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; }
   tr:last-child td { border-bottom: none; }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
   .badge.passed { background: rgba(79,209,139,0.15); color: var(--green); }
   .badge.failed, .badge.error { background: rgba(239,95,106,0.15); color: var(--red); }
   .badge.skipped { background: rgba(232,185,78,0.15); color: var(--yellow); }
   .badge.unknown { background: rgba(139,147,167,0.15); color: var(--muted); }
-  .failrate-bar { display: inline-block; width: 60px; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; vertical-align: middle; margin-right: 8px; }
-  .failrate-bar > div { height: 100%; background: var(--red); }
   a { color: var(--accent); text-decoration: none; }
   a:hover { text-decoration: underline; }
   .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 12px; flex-wrap: wrap; }
@@ -78,19 +90,68 @@
   }
   .empty { padding: 40px; text-align: center; color: var(--muted); }
   .refresh { color: var(--muted); font-size: 12px; }
+  .actions-cell { display: flex; gap: 6px; }
+  .btn {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 4px 9px; border-radius: 6px; font-size: 12px; cursor: pointer;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.danger:hover { border-color: var(--red); color: var(--red); }
+
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 40px 16px; overflow-y: auto; z-index: 50;
+  }
+  .modal {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    width: 100%; max-width: 720px; padding: 18px 20px;
+  }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 12px; }
+  .modal-header h2 { font-size: 15px; margin: 0; font-family: ui-monospace, SFMono-Regular, monospace; word-break: break-all; }
+  .modal-header-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .run-item { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+  .run-header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; }
+  .run-header .spacer { flex: 1; }
+  .run-log {
+    margin: 10px 0 0; padding: 10px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; font-size: 11px; white-space: pre-wrap; word-break: break-word;
+    max-height: 260px; overflow-y: auto; font-family: ui-monospace, SFMono-Regular, monospace;
+  }
+  .no-log { color: var(--muted); font-size: 12px; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #06101f; font-weight: 600; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  .form-grid label.full { grid-column: 1 / -1; }
+  .form-grid input, .form-grid select, .form-grid textarea {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 7px 9px; border-radius: 6px; font-size: 13px; font-family: inherit;
+  }
+  .form-grid textarea { font-family: ui-monospace, SFMono-Regular, monospace; resize: vertical; }
+  .form-actions { display: flex; justify-content: flex-end; }
 </style>
 </head>
 <body>
   <h1>Test Health Dashboard</h1>
-  <div class="sub">Storico dei fallimenti pytest riportati dalla pipeline Jenkins &middot; <span id="lastUpdated" class="refresh"></span></div>
+  <div class="sub">Failure log for pytest, reported by the Jenkins pipeline &middot; <span id="lastUpdated" class="refresh"></span></div>
+
+  <div class="admin-bar">
+    <span>Admin token (required to delete entries):</span>
+    <input id="adminToken" type="password" placeholder="paste your INGEST_TOKEN" />
+    <button id="saveTokenBtn">Save</button>
+    <span class="status" id="tokenStatus"></span>
+  </div>
 
   <div class="cards" id="cards"></div>
 
   <div class="toolbar">
-    <input id="search" type="text" placeholder="Filtra per nome test..." />
-    <select id="categoryFilter">
-      <option value="">Tutte le categorie</option>
-    </select>
+    <div class="toolbar-left" style="display:flex; gap:12px; flex-wrap:wrap;">
+      <input id="search" type="text" placeholder="Filter by test name..." />
+      <select id="categoryFilter">
+        <option value="">All categories</option>
+      </select>
+    </div>
+    <button class="btn primary" id="addEntryBtn">+ Add entry</button>
   </div>
 
   <div class="panel">
@@ -98,29 +159,101 @@
       <thead>
         <tr>
           <th data-key="test_name">Test</th>
-          <th data-key="fail_rate">Fail rate</th>
-          <th data-key="total">Run</th>
-          <th data-key="failed">Falliti</th>
-          <th data-key="last_outcome">Ultimo esito</th>
-          <th data-key="last_build">Ultima build</th>
-          <th data-key="category">Categoria</th>
+          <th data-key="total">Occurrences</th>
+          <th data-key="category">Category</th>
+          <th data-key="last_build">Last build</th>
+          <th data-key="last_timestamp">Last seen</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody id="rows"></tbody>
     </table>
-    <div class="empty" id="emptyState" style="display:none;">Nessun dato ancora. Configura Jenkins per inviare i risultati a <code>/api/results</code>.</div>
+    <div class="empty" id="emptyState" style="display:none;">No data yet. Configure Jenkins to send failures to <code>/api/results</code>.</div>
+  </div>
+
+  <div class="overlay" id="overlay" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalTitle"></h2>
+        <div class="modal-header-actions">
+          <button class="btn danger" id="deleteAllBtn">Delete all</button>
+          <button class="btn" id="closeModalBtn">Close</button>
+        </div>
+      </div>
+      <div id="modalRuns"></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="addOverlay" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Add new entry</h2>
+        <div class="modal-header-actions">
+          <button class="btn" id="closeAddModalBtn">Close</button>
+        </div>
+      </div>
+      <div class="form-grid">
+        <label>Test name
+          <input id="addTestName" type="text" placeholder="test_module.py::test_function" />
+        </label>
+        <label>Outcome
+          <select id="addOutcome">
+            <option value="failed">failed</option>
+            <option value="error">error</option>
+            <option value="passed">passed</option>
+            <option value="skipped">skipped</option>
+          </select>
+        </label>
+        <label>Build number
+          <input id="addBuildNumber" type="text" placeholder="e.g. 123" />
+        </label>
+        <label>Build URL (optional)
+          <input id="addBuildUrl" type="text" placeholder="https://jenkins.../job/.../123/" />
+        </label>
+        <label>Jenkins node (optional)
+          <input id="addNodeName" type="text" />
+        </label>
+        <label>Job (optional)
+          <input id="addJobName" type="text" />
+        </label>
+        <label>Category (optional)
+          <select id="addCategory">
+            <option value="">-</option>
+            <option value="can_timeout">can_timeout</option>
+            <option value="ramp_timeout">ramp_timeout</option>
+            <option value="timeout_generic">timeout_generic</option>
+          </select>
+        </label>
+        <label class="full">Message / log (optional)
+          <textarea id="addMessage" rows="6" placeholder="Paste the failure message or log here"></textarea>
+        </label>
+      </div>
+      <div class="form-actions">
+        <button class="btn primary" id="submitAddBtn">Add entry</button>
+      </div>
+    </div>
   </div>
 
 <script>
   let allTests = [];
-  let sortKey = 'fail_rate';
+  let sortKey = 'total';
   let sortDir = -1;
+  let currentModalTest = null;
+
+  function getAdminToken() {
+    try { return localStorage.getItem('dashboardAdminToken') || ''; } catch { return ''; }
+  }
 
   function topCategory(cats) {
     const entries = Object.entries(cats || {});
     if (entries.length === 0) return null;
     entries.sort((a, b) => b[1] - a[1]);
     return entries[0][0];
+  }
+
+  function formatTime(ts) {
+    if (!ts) return '-';
+    try { return new Date(ts).toLocaleString('en-GB'); } catch { return ts; }
   }
 
   function render() {
@@ -134,9 +267,11 @@
     });
 
     filtered.sort((a, b) => {
-      const av = a[sortKey], bv = b[sortKey];
-      if (typeof av === 'string') return sortDir * av.localeCompare(bv || '');
-      return sortDir * ((av || 0) - (bv || 0));
+      if (sortKey === 'test_name') return sortDir * a.test_name.localeCompare(b.test_name);
+      if (sortKey === 'category') return sortDir * (topCategory(a.categories) || '').localeCompare(topCategory(b.categories) || '');
+      if (sortKey === 'last_build') return sortDir * ((a.last_build || '') - (b.last_build || '') || (a.last_build || '').localeCompare(b.last_build || ''));
+      if (sortKey === 'last_timestamp') return sortDir * (new Date(a.last_timestamp || 0) - new Date(b.last_timestamp || 0));
+      return sortDir * ((a[sortKey] || 0) - (b[sortKey] || 0));
     });
 
     const rows = document.getElementById('rows');
@@ -145,32 +280,39 @@
 
     for (const t of filtered) {
       const tr = document.createElement('tr');
-      const pct = Math.round(t.fail_rate * 100);
       const buildLink = t.last_build_url
         ? `<a href="${t.last_build_url}" target="_blank" rel="noopener">#${t.last_build || '?'}</a>`
         : (t.last_build ? `#${t.last_build}` : '-');
       tr.innerHTML = `
         <td class="test-name">${t.test_name}</td>
-        <td><span class="failrate-bar"><div style="width:${pct}%"></div></span>${pct}%</td>
         <td>${t.total}</td>
-        <td>${t.failed + t.error}</td>
-        <td><span class="badge ${t.last_outcome}">${t.last_outcome || '-'}</span></td>
-        <td>${buildLink}</td>
         <td>${topCategory(t.categories) || '-'}</td>
+        <td>${buildLink}</td>
+        <td>${formatTime(t.last_timestamp)}</td>
+        <td class="actions-cell">
+          <button class="btn" data-action="logs" data-test="${encodeURIComponent(t.test_name)}">Logs</button>
+          <button class="btn danger" data-action="delete-all" data-test="${encodeURIComponent(t.test_name)}">Delete all</button>
+        </td>
       `;
       rows.appendChild(tr);
     }
+
+    rows.querySelectorAll('button[data-action="logs"]').forEach((btn) => {
+      btn.addEventListener('click', () => openModal(decodeURIComponent(btn.dataset.test)));
+    });
+    rows.querySelectorAll('button[data-action="delete-all"]').forEach((btn) => {
+      btn.addEventListener('click', () => deleteAllRuns(decodeURIComponent(btn.dataset.test)));
+    });
   }
 
   function renderCards(data) {
     const tests = data.tests || [];
-    const flaky = tests.filter((t) => t.fail_rate > 0 && t.fail_rate < 1).length;
-    const currentlyFailing = tests.filter((t) => t.last_outcome === 'failed' || t.last_outcome === 'error').length;
+    const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const last24h = (data.recent || []).filter((e) => e.timestamp && new Date(e.timestamp).getTime() >= dayAgo).length;
     const cards = [
-      { label: 'Test monitorati', value: tests.length },
-      { label: 'Run registrate', value: data.total_entries },
-      { label: 'Test flaky', value: flaky },
-      { label: 'In fallimento ora', value: currentlyFailing },
+      { label: 'Failing tests', value: tests.length },
+      { label: 'Failure records', value: data.total_entries },
+      { label: 'Last 24h', value: last24h },
     ];
     document.getElementById('cards').innerHTML = cards
       .map((c) => `<div class="card"><div class="label">${c.label}</div><div class="value">${c.value}</div></div>`)
@@ -185,7 +327,7 @@
     });
     const sel = document.getElementById('categoryFilter');
     const current = sel.value;
-    sel.innerHTML = '<option value="">Tutte le categorie</option>' +
+    sel.innerHTML = '<option value="">All categories</option>' +
       Array.from(set).sort().map((c) => `<option value="${c}">${c}</option>`).join('');
     sel.value = current;
   }
@@ -199,10 +341,105 @@
       populateCategories(allTests);
       render();
       document.getElementById('lastUpdated').textContent =
-        'aggiornato alle ' + new Date(data.generated_at).toLocaleTimeString('it-IT');
+        'updated at ' + new Date(data.generated_at).toLocaleTimeString('en-GB');
+
+      if (currentModalTest) {
+        const fresh = allTests.find((t) => t.test_name === currentModalTest);
+        if (fresh) renderModal(fresh); else closeModal();
+      }
     } catch (e) {
       document.getElementById('emptyState').style.display = 'block';
-      document.getElementById('emptyState').textContent = 'Errore nel caricamento: ' + e.message;
+      document.getElementById('emptyState').textContent = 'Failed to load data: ' + e.message;
+    }
+  }
+
+  function openModal(testName) {
+    const t = allTests.find((x) => x.test_name === testName);
+    if (!t) return;
+    currentModalTest = testName;
+    renderModal(t);
+    document.getElementById('overlay').hidden = false;
+  }
+
+  function closeModal() {
+    currentModalTest = null;
+    document.getElementById('overlay').hidden = true;
+  }
+
+  function renderModal(t) {
+    document.getElementById('modalTitle').textContent = t.test_name;
+    document.getElementById('deleteAllBtn').onclick = () => deleteAllRuns(t.test_name);
+
+    const runs = (t.runs || []).slice().sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+    const container = document.getElementById('modalRuns');
+    container.innerHTML = '';
+
+    for (const run of runs) {
+      const item = document.createElement('div');
+      item.className = 'run-item';
+      const buildLink = run.build_url
+        ? `<a href="${run.build_url}" target="_blank" rel="noopener">#${run.build_number || '?'}</a>`
+        : (run.build_number ? `#${run.build_number}` : '-');
+      item.innerHTML = `
+        <div class="run-header">
+          <span class="badge ${run.outcome}">${run.outcome || '-'}</span>
+          <span>${buildLink}</span>
+          <span>${formatTime(run.timestamp)}</span>
+          <span>${run.category || ''}</span>
+          <span class="spacer"></span>
+          ${run.message ? '<button class="btn toggle-log">View log</button>' : '<span class="no-log">No log</span>'}
+          <button class="btn danger delete-run">Delete</button>
+        </div>
+        ${run.message ? `<pre class="run-log" hidden></pre>` : ''}
+      `;
+      if (run.message) {
+        const pre = item.querySelector('.run-log');
+        pre.textContent = run.message;
+        item.querySelector('.toggle-log').addEventListener('click', (ev) => {
+          pre.hidden = !pre.hidden;
+          ev.target.textContent = pre.hidden ? 'View log' : 'Hide log';
+        });
+      }
+      item.querySelector('.delete-run').addEventListener('click', () => deleteRun(run.id));
+      container.appendChild(item);
+    }
+
+    if (runs.length === 0) {
+      container.innerHTML = '<div class="no-log">No occurrences left.</div>';
+    }
+  }
+
+  async function apiDelete(body) {
+    const token = getAdminToken();
+    if (!token) {
+      alert('Set the admin token first (top of the page) to delete entries.');
+      return null;
+    }
+    const res = await fetch('/api/results', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': token },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('Delete failed: ' + (data.error || res.status));
+      return null;
+    }
+    return data;
+  }
+
+  async function deleteRun(id) {
+    if (!confirm('Delete this occurrence?')) return;
+    const result = await apiDelete({ id });
+    if (result) await load();
+  }
+
+  async function deleteAllRuns(testName) {
+    if (!confirm(`Delete ALL occurrences of "${testName}"?`)) return;
+    const result = await apiDelete({ test_name: testName, all: true });
+    if (result) {
+      if (currentModalTest === testName) closeModal();
+      await load();
     }
   }
 
@@ -215,6 +452,98 @@
   });
   document.getElementById('search').addEventListener('input', render);
   document.getElementById('categoryFilter').addEventListener('change', render);
+  document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+  document.getElementById('overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'overlay') closeModal();
+  });
+
+  const tokenInput = document.getElementById('adminToken');
+  const tokenStatus = document.getElementById('tokenStatus');
+  tokenInput.value = getAdminToken();
+  tokenStatus.textContent = getAdminToken() ? 'saved on this browser' : 'not set';
+  document.getElementById('saveTokenBtn').addEventListener('click', () => {
+    try {
+      localStorage.setItem('dashboardAdminToken', tokenInput.value.trim());
+      tokenStatus.textContent = 'saved on this browser';
+    } catch {
+      tokenStatus.textContent = 'could not save (private browsing?)';
+    }
+  });
+
+  function openAddModal() {
+    document.getElementById('addOverlay').hidden = false;
+    document.getElementById('addTestName').focus();
+  }
+
+  function closeAddModal() {
+    document.getElementById('addOverlay').hidden = true;
+  }
+
+  function clearAddForm() {
+    document.getElementById('addTestName').value = '';
+    document.getElementById('addOutcome').value = 'failed';
+    document.getElementById('addBuildNumber').value = '';
+    document.getElementById('addBuildUrl').value = '';
+    document.getElementById('addNodeName').value = '';
+    document.getElementById('addJobName').value = '';
+    document.getElementById('addCategory').value = '';
+    document.getElementById('addMessage').value = '';
+  }
+
+  async function submitAddEntry() {
+    const token = getAdminToken();
+    if (!token) {
+      alert('Set the admin token first (top of the page) to add entries.');
+      return;
+    }
+    const testName = document.getElementById('addTestName').value.trim();
+    if (!testName) {
+      alert('Test name is required.');
+      return;
+    }
+
+    const payload = {
+      results: [{
+        test_name: testName,
+        outcome: document.getElementById('addOutcome').value,
+        build_number: document.getElementById('addBuildNumber').value.trim() || null,
+        build_url: document.getElementById('addBuildUrl').value.trim() || null,
+        node_name: document.getElementById('addNodeName').value.trim() || null,
+        job_name: document.getElementById('addJobName').value.trim() || null,
+        category: document.getElementById('addCategory').value || null,
+        message: document.getElementById('addMessage').value.trim() || null,
+      }],
+    };
+
+    const btn = document.getElementById('submitAddBtn');
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': token },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert('Add failed: ' + (data.error || res.status));
+        return;
+      }
+      closeAddModal();
+      clearAddForm();
+      await load();
+    } catch (e) {
+      alert('Network error: ' + e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  document.getElementById('addEntryBtn').addEventListener('click', openAddModal);
+  document.getElementById('closeAddModalBtn').addEventListener('click', closeAddModal);
+  document.getElementById('addOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'addOverlay') closeAddModal();
+  });
+  document.getElementById('submitAddBtn').addEventListener('click', submitAddEntry);
 
   load();
   setInterval(load, 60000);
