@@ -345,10 +345,10 @@
         <td>${buildLinkHtml(t.last_build_url)}</td>
         <td>${formatTime(t.last_timestamp)}</td>
         <td class="actions-cell">
-          <button class="btn" data-action="info" data-test="${encodeURIComponent(t.test_name)}">Info</button>
+          ${t.total > 1 ? `<button class="btn" data-action="info" data-test="${encodeURIComponent(t.test_name)}">Info</button>` : ''}
           <button class="btn" data-action="log" data-test="${encodeURIComponent(t.test_name)}">Log</button>
           <button class="btn" data-action="copy-log" data-test="${encodeURIComponent(t.test_name)}">Copy Log</button>
-          <button class="btn" data-action="modify" data-test="${encodeURIComponent(t.test_name)}">Modify</button>
+          <button class="btn" data-action="modify" data-test="${encodeURIComponent(t.test_name)}">Edit</button>
           <button class="btn danger" data-action="delete-all" data-test="${encodeURIComponent(t.test_name)}">Delete all</button>
         </td>
       `;
