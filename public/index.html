@@ -110,6 +110,12 @@
     background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
     width: 100%; max-width: 720px; padding: 18px 20px;
   }
+  .modal.wide { max-width: 1200px; }
+  .log-view {
+    margin: 0; padding: 14px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; font-size: 12px; white-space: pre-wrap; word-break: break-word;
+    max-height: 70vh; overflow-y: auto; font-family: ui-monospace, SFMono-Regular, monospace;
+  }
   .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 12px; }
   .modal-header h2 { font-size: 15px; margin: 0; font-family: ui-monospace, SFMono-Regular, monospace; word-break: break-all; }
   .modal-header-actions { display: flex; gap: 8px; flex-shrink: 0; }
@@ -151,7 +157,10 @@
 
   <div class="toolbar">
     <input id="search" type="text" placeholder="Filter by test name..." />
-    <button class="btn primary" id="addEntryBtn">+ Add entry</button>
+    <div style="display:flex; gap:8px;">
+      <button class="btn" id="copyAllLogsBtn">Copy All Logs</button>
+      <button class="btn primary" id="addEntryBtn">+ Add entry</button>
+    </div>
   </div>
 
   <div class="panel">
@@ -180,6 +189,19 @@
         </div>
       </div>
       <div id="modalRuns"></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="logOverlay" hidden>
+    <div class="modal wide">
+      <div class="modal-header">
+        <h2 id="logModalTitle"></h2>
+        <div class="modal-header-actions">
+          <button class="btn primary" id="copyLogModalBtn">Copy</button>
+          <button class="btn" id="closeLogModalBtn">Close</button>
+        </div>
+      </div>
+      <pre class="log-view" id="logModalContent"></pre>
     </div>
   </div>
 
@@ -324,6 +346,8 @@
         <td>${formatTime(t.last_timestamp)}</td>
         <td class="actions-cell">
           <button class="btn" data-action="info" data-test="${encodeURIComponent(t.test_name)}">Info</button>
+          <button class="btn" data-action="log" data-test="${encodeURIComponent(t.test_name)}">Log</button>
+          <button class="btn" data-action="copy-log" data-test="${encodeURIComponent(t.test_name)}">Copy Log</button>
           <button class="btn" data-action="modify" data-test="${encodeURIComponent(t.test_name)}">Modify</button>
           <button class="btn danger" data-action="delete-all" data-test="${encodeURIComponent(t.test_name)}">Delete all</button>
         </td>
@@ -333,6 +357,12 @@
 
     rows.querySelectorAll('button[data-action="info"]').forEach((btn) => {
       btn.addEventListener('click', () => openInfoModal(decodeURIComponent(btn.dataset.test)));
+    });
+    rows.querySelectorAll('button[data-action="log"]').forEach((btn) => {
+      btn.addEventListener('click', () => openLogModal(decodeURIComponent(btn.dataset.test)));
+    });
+    rows.querySelectorAll('button[data-action="copy-log"]').forEach((btn) => {
+      btn.addEventListener('click', () => copyTestLog(decodeURIComponent(btn.dataset.test)));
     });
     rows.querySelectorAll('button[data-action="modify"]').forEach((btn) => {
       btn.addEventListener('click', () => openModifyFlow(decodeURIComponent(btn.dataset.test)));
@@ -387,6 +417,73 @@
   function closeInfoModal() {
     currentModalTest = null;
     document.getElementById('overlay').hidden = true;
+  }
+
+  function getLatestRun(t) {
+    const runs = (t.runs || []).slice().sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+    return runs[0] || null;
+  }
+
+  function openLogModal(testName) {
+    const t = allTests.find((x) => x.test_name === testName);
+    if (!t) return;
+    const run = getLatestRun(t);
+    document.getElementById('logModalTitle').textContent = testName;
+    document.getElementById('logModalContent').textContent = run && run.message ? run.message : 'No log for this test.';
+    document.getElementById('copyLogModalBtn').onclick = () => copyToClipboard(document.getElementById('logModalContent').textContent);
+    document.getElementById('logOverlay').hidden = false;
+  }
+
+  function closeLogModal() {
+    document.getElementById('logOverlay').hidden = true;
+  }
+
+  async function copyToClipboard(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        return true;
+      } catch {
+        alert('Could not copy to clipboard.');
+        return false;
+      }
+    }
+  }
+
+  function copyTestLog(testName) {
+    const t = allTests.find((x) => x.test_name === testName);
+    if (!t) return;
+    const run = getLatestRun(t);
+    const text = run && run.message ? run.message : 'No log for this test.';
+    copyToClipboard(text);
+  }
+
+  function copyAllLogs() {
+    const blocks = [];
+    for (const t of allTests) {
+      const runs = (t.runs || []).slice().sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+      for (const run of runs) {
+        if (run.message) {
+          blocks.push(`=== ${t.test_name} (${formatTime(run.timestamp)}) ===\n${run.message}`);
+        }
+      }
+    }
+    if (!blocks.length) {
+      alert('No logs to copy.');
+      return;
+    }
+    copyToClipboard(blocks.join('\n'));
   }
 
   function renderInfoModal(t) {
@@ -579,6 +676,11 @@
   document.getElementById('overlay').addEventListener('click', (e) => {
     if (e.target.id === 'overlay') closeInfoModal();
   });
+  document.getElementById('closeLogModalBtn').addEventListener('click', closeLogModal);
+  document.getElementById('logOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'logOverlay') closeLogModal();
+  });
+  document.getElementById('copyAllLogsBtn').addEventListener('click', copyAllLogs);
   document.getElementById('closeChooserBtn').addEventListener('click', closeChooserModal);
   document.getElementById('chooserOverlay').addEventListener('click', (e) => {
     if (e.target.id === 'chooserOverlay') closeChooserModal();
