@@ -140,6 +140,17 @@
   }
   .form-grid textarea, .form-stack textarea { font-family: ui-monospace, SFMono-Regular, monospace; resize: vertical; }
   .form-actions { display: flex; justify-content: flex-end; }
+  .view-tabs { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 2px; }
+  .view-tabs button {
+    background: transparent; border: none; color: var(--muted); padding: 5px 12px;
+    border-radius: 5px; font-size: 12px; cursor: pointer; font-family: inherit;
+  }
+  .view-tabs button:hover { color: var(--text); }
+  .view-tabs button.active { background: var(--accent); color: #06101f; font-weight: 600; }
+  .sort-arrow { font-size: 10px; margin-left: 3px; color: var(--accent); display: inline-block; width: 10px; }
+  .pagination { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 12px 14px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+  .pagination button:disabled { opacity: 0.4; cursor: default; }
+  .pagination button:disabled:hover { border-color: var(--border); }
 </style>
 </head>
 <body>
@@ -156,7 +167,13 @@
   <div class="cards" id="cards"></div>
 
   <div class="toolbar">
-    <input id="search" type="text" placeholder="Filter by test name..." />
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <input id="search" type="text" placeholder="Filter by test name..." />
+      <div class="view-tabs" id="viewTabs">
+        <button class="active" data-view="all">View all</button>
+        <button data-view="today">View today</button>
+      </div>
+    </div>
     <div style="display:flex; gap:8px;">
       <button class="btn" id="copyAllLogsBtn">Copy All Logs</button>
       <button class="btn primary" id="addEntryBtn">+ Add entry</button>
@@ -167,16 +184,17 @@
     <table>
       <thead>
         <tr>
-          <th data-key="test_name">Test</th>
-          <th data-key="total">Occurrences</th>
+          <th data-key="test_name">Test<span class="sort-arrow"></span></th>
+          <th data-key="total">Occurrences<span class="sort-arrow"></span></th>
           <th class="no-sort">Last build</th>
-          <th data-key="last_timestamp">Last seen</th>
+          <th data-key="last_timestamp">Last seen<span class="sort-arrow"></span></th>
           <th class="no-sort">Actions</th>
         </tr>
       </thead>
       <tbody id="rows"></tbody>
     </table>
     <div class="empty" id="emptyState" style="display:none;">No data yet. Configure Jenkins to send failures to <code>/api/results</code>.</div>
+    <div class="pagination" id="pagination"></div>
   </div>
 
   <div class="overlay" id="overlay" hidden>
@@ -289,6 +307,9 @@
   let sortDir = -1;
   let currentModalTest = null;
   let editingRunId = null;
+  let currentView = 'all';
+  let currentPage = 1;
+  const PAGE_SIZE = 15;
 
   function getAdminToken() {
     try { return localStorage.getItem('dashboardAdminToken') || ''; } catch { return ''; }
@@ -322,10 +343,48 @@
     return `<a href="${url}" target="_blank" rel="noopener">${label}</a>`;
   }
 
+  function isToday(ts) {
+    if (!ts) return false;
+    const d = new Date(ts);
+    const now = new Date();
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  }
+
+  function updateSortArrows() {
+    document.querySelectorAll('th[data-key]').forEach((th) => {
+      const arrow = th.querySelector('.sort-arrow');
+      if (!arrow) return;
+      arrow.textContent = th.dataset.key === sortKey ? (sortDir === 1 ? '▲' : '▼') : '';
+    });
+  }
+
+  function renderPagination(totalItems, totalPages) {
+    const el = document.getElementById('pagination');
+    if (!totalItems) {
+      el.innerHTML = '';
+      return;
+    }
+    el.innerHTML = `
+      <button class="btn" id="pagePrevBtn" ${currentPage <= 1 ? 'disabled' : ''}>&laquo; Prev</button>
+      <span>Page ${currentPage} / ${totalPages} &middot; ${totalItems} test${totalItems === 1 ? '' : 's'}</span>
+      <button class="btn" id="pageNextBtn" ${currentPage >= totalPages ? 'disabled' : ''}>Next &raquo;</button>
+    `;
+    document.getElementById('pagePrevBtn').addEventListener('click', () => {
+      if (currentPage > 1) { currentPage--; render(); }
+    });
+    document.getElementById('pageNextBtn').addEventListener('click', () => {
+      if (currentPage < totalPages) { currentPage++; render(); }
+    });
+  }
+
   function render() {
     const search = document.getElementById('search').value.toLowerCase();
 
     let filtered = allTests.filter((t) => !search || t.test_name.toLowerCase().includes(search));
+
+    if (currentView === 'today') {
+      filtered = filtered.filter((t) => (t.runs || []).some((r) => isToday(r.timestamp)));
+    }
 
     filtered.sort((a, b) => {
       if (sortKey === 'test_name') return sortDir * a.test_name.localeCompare(b.test_name);
@@ -333,11 +392,17 @@
       return sortDir * ((a[sortKey] || 0) - (b[sortKey] || 0));
     });
 
+    const totalItems = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+    const pageItems = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
     const rows = document.getElementById('rows');
     rows.innerHTML = '';
-    document.getElementById('emptyState').style.display = filtered.length ? 'none' : 'block';
+    document.getElementById('emptyState').style.display = totalItems ? 'none' : 'block';
 
-    for (const t of filtered) {
+    for (const t of pageItems) {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td class="test-name">${t.test_name}</td>
@@ -370,6 +435,9 @@
     rows.querySelectorAll('button[data-action="delete-all"]').forEach((btn) => {
       btn.addEventListener('click', () => deleteAllRuns(decodeURIComponent(btn.dataset.test)));
     });
+
+    updateSortArrows();
+    renderPagination(totalItems, totalPages);
   }
 
   function renderCards(data) {
@@ -668,10 +736,19 @@
     th.addEventListener('click', () => {
       const key = th.dataset.key;
       if (sortKey === key) sortDir *= -1; else { sortKey = key; sortDir = -1; }
+      currentPage = 1;
       render();
     });
   });
-  document.getElementById('search').addEventListener('input', render);
+  document.getElementById('search').addEventListener('input', () => { currentPage = 1; render(); });
+  document.getElementById('viewTabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-view]');
+    if (!btn) return;
+    currentView = btn.dataset.view;
+    currentPage = 1;
+    document.querySelectorAll('#viewTabs button').forEach((b) => b.classList.toggle('active', b === btn));
+    render();
+  });
   document.getElementById('closeModalBtn').addEventListener('click', closeInfoModal);
   document.getElementById('overlay').addEventListener('click', (e) => {
     if (e.target.id === 'overlay') closeInfoModal();
